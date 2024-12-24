@@ -1,101 +1,195 @@
-import Image from "next/image";
+"use client";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ChangeEventHandler, useCallback, useMemo, useState } from "react";
+
+type Amount = {
+  value: number;
+  formattedValue: string | undefined;
+  currency: "USD" | "RUB";
+  time: "year" | "month" | "hour";
+};
+
+const USD_RUB_RATE = 100;
+
+const getCurrencyRate = (
+  from: Amount["currency"],
+  to: Amount["currency"]
+): number => {
+  if (from === to) {
+    return 1;
+  }
+  // USD => RUB
+  if (from === "USD") {
+    return 1 * USD_RUB_RATE;
+  }
+  // RUB => USD
+  return 1 / getCurrencyRate(to, from);
+};
+
+const getTimeRate = (from: Amount["time"], to: Amount["time"]): number => {
+  if (from === to) {
+    return 1;
+  }
+  if (from === "hour" && to === "month") {
+    return 1 * 8 * 21;
+  }
+  if (from === "month" && to === "year") {
+    return 1 * 12;
+  }
+  if (from === "hour" && to === "year") {
+    return getTimeRate("hour", "month") * getTimeRate("month", "year");
+  }
+  return 1 / getTimeRate(to, from);
+};
+
+const convertAmount = (
+  fromAmount: Amount,
+  toAmount: Pick<Amount, "currency" | "time">
+) => {
+  return (
+    fromAmount.value *
+    getCurrencyRate(fromAmount.currency, toAmount.currency) *
+    getTimeRate(fromAmount.time, toAmount.time)
+  );
+};
+
+const formatNumber = (num: number) => {
+  if (!num) {
+    return undefined;
+  }
+  return new Intl.NumberFormat("en-US").format(Math.floor(num));
+};
+
+const parseFormattedNumber = (formattedNumber: string) => {
+  const sanitizedNumber = formattedNumber.replace(/[^0-9.-]+/g, "");
+  return parseFloat(sanitizedNumber);
+};
 
 export default function Home() {
+  const [amount, setAmount] = useState<Amount>({
+    value: 120000,
+    formattedValue: formatNumber(120000),
+    currency: "USD",
+    time: "year",
+  });
+
+  const createAmountOnChangeHandler = useCallback(
+    (
+      currency: Amount["currency"],
+      time: Amount["time"]
+    ): ChangeEventHandler<HTMLInputElement> => {
+      return (event) => {
+        const value = parseFormattedNumber(event.target.value);
+        console.log("value", value);
+        setAmount({
+          value,
+          formattedValue: formatNumber(value),
+          currency,
+          time,
+        });
+      };
+    },
+    [setAmount]
+  );
+
+  const usdPerYear = useMemo(
+    () => convertAmount(amount, { currency: "USD", time: "year" }),
+    [amount]
+  );
+
+  const rubPerYear = useMemo(
+    () => convertAmount(amount, { currency: "RUB", time: "year" }),
+    [amount]
+  );
+
+  const usdPerMonth = useMemo(
+    () => convertAmount(amount, { currency: "USD", time: "month" }),
+    [amount]
+  );
+
+  const rubPerMonth = useMemo(
+    () => convertAmount(amount, { currency: "RUB", time: "month" }),
+    [amount]
+  );
+
+  const usdPerHour = useMemo(
+    () => convertAmount(amount, { currency: "USD", time: "hour" }),
+    [amount]
+  );
+
+  const rubPerHour = useMemo(
+    () => convertAmount(amount, { currency: "RUB", time: "hour" }),
+    [amount]
+  );
+
+  console.log("rub to locale", rubPerYear.toLocaleString("ru-RU"));
+
   return (
     <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+      <main className="grid grid-cols-2 grid-rows-3 gap-8 row-start-2 items-center sm:items-start">
+        <div className="grid w-full max-w-sm items-center gap-1.5">
+          <Label htmlFor="email">USD/y</Label>
+          <Input
+            type="text"
+            id="email"
+            placeholder="$120k"
+            value={formatNumber(usdPerYear)}
+            onChange={createAmountOnChangeHandler("USD", "year")}
+          />
+        </div>
+        <div className="grid w-full max-w-sm items-center gap-1.5">
+          <Label htmlFor="email">RUB/y</Label>
+          <Input
+            prefix="$"
+            type="text"
+            id="email"
+            placeholder="12m"
+            value={formatNumber(rubPerYear)}
+            onChange={createAmountOnChangeHandler("RUB", "year")}
+          />
+        </div>
+        <div className="grid w-full max-w-sm items-center gap-1.5">
+          <Label htmlFor="email">USD/m</Label>
+          <Input
+            type="text"
+            id="email2"
+            placeholder="$10k"
+            value={formatNumber(usdPerMonth)}
+            onChange={createAmountOnChangeHandler("USD", "month")}
+          />
+        </div>
+        <div className="grid w-full max-w-sm items-center gap-1.5">
+          <Label htmlFor="email">RUB/m</Label>
+          <Input
+            type="text"
+            id="email2"
+            placeholder="1m"
+            value={formatNumber(rubPerMonth)}
+            onChange={createAmountOnChangeHandler("RUB", "month")}
+          />
+        </div>
+        <div className="grid w-full max-w-sm items-center gap-1.5">
+          <Label htmlFor="email">USD/h</Label>
+          <Input
+            type="text"
+            id="email2"
+            placeholder="$60"
+            value={formatNumber(usdPerHour)}
+            onChange={createAmountOnChangeHandler("USD", "hour")}
+          />
+        </div>
+        <div className="grid w-full max-w-sm items-center gap-1.5">
+          <Label htmlFor="email">RUB/h</Label>
+          <Input
+            type="text"
+            id="email2"
+            placeholder="6k"
+            value={formatNumber(rubPerHour)}
+            onChange={createAmountOnChangeHandler("RUB", "hour")}
+          />
         </div>
       </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
     </div>
   );
 }
