@@ -167,7 +167,10 @@ export const BookPlanner = () => {
                 <Label htmlFor="pageCount">
                   Ориентировочное время чтения (мин / день)
                 </Label>
-                <Input readOnly value={Math.floor(readTimeMinutes)} />
+                <Input
+                  readOnly
+                  value={Math.floor(pagesPerDayCount * readTimeMinutes)}
+                />
               </div>
             )}
             <Textarea
