@@ -13,6 +13,10 @@ export const BookPlanner = () => {
   const [pagesPerDayCount, setPagesPerDayCount] = useState<
     number | undefined
   >();
+  const [pageContent, setPageContent] = useState<string | undefined>();
+  const [readingSpeed, setReadingSpeed] = useState<number | undefined>(
+    120
+  );
 
   const pagesReadCount =
     startPage && endPage && endPage > startPage && endPage - startPage + 1;
@@ -54,6 +58,14 @@ export const BookPlanner = () => {
     }
   }, [startPage, endPage, pagesPerDayCount]);
 
+  const readTimeMinutes = useMemo(() => {
+    if (pageContent && readingSpeed) {
+      const pageWords = pageContent.split(" ");
+      const pageReadTimeMinutes = pageWords.length / readingSpeed;
+      return pageReadTimeMinutes;
+    }
+  }, [pageContent, readingSpeed]);
+
   return (
     <div className="grid gap-8">
       <div className="grid w-full max-w-sm items-center gap-1.5">
@@ -62,7 +74,7 @@ export const BookPlanner = () => {
         </Label>
         <Input
           id="startPage"
-          type="text"
+          type="number"
           placeholder="1"
           // value={formatNumber(usdPerYear)}
           // onChange={createAmountOnChangeHandler("USD", "year")}
@@ -76,7 +88,7 @@ export const BookPlanner = () => {
         <Input
           id="endPage"
           prefix="$"
-          type="text"
+          type="number"
           placeholder="224"
           onChange={(e) => setEndPage(+e.target.value)}
         />
@@ -87,9 +99,33 @@ export const BookPlanner = () => {
         </Label>
         <Input
           id="pageCount"
-          type="text"
+          type="number"
           placeholder="4"
           onChange={(e) => setPagesPerDayCount(+e.target.value)}
+        />
+      </div>
+      <div className="grid w-full max-w-sm items-center gap-1.5">
+        <Label htmlFor="pageContent">
+          Введи текст одной из страниц книги
+        </Label>
+        <Textarea
+          id="pageContent"
+          rows={5}
+          placeholder="Равным образом, сложившаяся структура организации способствует повышению качества системы обучения кадров, соответствующей насущным потребностям. Принимая во внимание показатели успешности, курс на социально-ориентированный национальный проект не оставляет шанса для глубокомысленных рассуждений. Высокий уровень вовлечения представителей целевой аудитории является четким доказательством простого факта: высокотехнологичная концепция общественного уклада создаёт необходимость включения в производственный план целого ряда внеочередных мероприятий с учётом комплекса благоприятных перспектив."
+          onChange={(e) => setPageContent(e.target.value)}
+        />
+      </div>
+      <div className="grid w-full max-w-sm items-center gap-1.5">
+        <Label htmlFor="readingSpeed">
+          Введи скорость чтения в словах за минуту (средняя - 120 сл/мин,
+          размеренная - 100 сл/мин)
+        </Label>
+        <Input
+          id="readingSpeed"
+          type="number"
+          placeholder="120"
+          defaultValue={120}
+          onChange={(e) => setReadingSpeed(+e.target.value)}
         />
       </div>
 
@@ -102,18 +138,38 @@ export const BookPlanner = () => {
             </h1>
             <div className="grid grid-cols-3 gap-4 mb-4">
               <div>
-                <Label htmlFor="pageCount">Дней</Label>
-                <Input readOnly value={round(pagesReadCountDays)} />
+                <Label htmlFor="readCountDays">Дней</Label>
+                <Input
+                  id="readCountDays"
+                  readOnly
+                  value={round(pagesReadCountDays)}
+                />
               </div>
               <div>
-                <Label htmlFor="pageCount">Недель</Label>
-                <Input readOnly value={round(pagesReadCountWeeks)} />
+                <Label htmlFor="readCountWeeks">Недель</Label>
+                <Input
+                  id="readCountWeeks"
+                  readOnly
+                  value={round(pagesReadCountWeeks)}
+                />
               </div>
               <div>
-                <Label htmlFor="pageCount">Месяцев</Label>
-                <Input readOnly value={round(pagesReadCountMonths)} />
+                <Label htmlFor="readCountMonths">Месяцев</Label>
+                <Input
+                  id="readCountMonths"
+                  readOnly
+                  value={round(pagesReadCountMonths)}
+                />
               </div>
             </div>
+            {readTimeMinutes && (
+              <div className="w-full mb-4">
+                <Label htmlFor="pageCount">
+                  Ориентировочное время чтения (мин / день)
+                </Label>
+                <Input readOnly value={Math.floor(readTimeMinutes)} />
+              </div>
+            )}
             <Textarea
               id="readPlan"
               readOnly
