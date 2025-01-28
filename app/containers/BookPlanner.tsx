@@ -1,13 +1,18 @@
 "use client";
+import { Copy } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
+import copy from "copy-to-clipboard";
+import { useToast } from "@/hooks/use-toast";
 
 const round = (num: number) =>
   Math.round((num + Number.EPSILON) * 100) / 100;
 
 export const BookPlanner = () => {
+  const { toast } = useToast();
   const [startPage, setStartPage] = useState<number | undefined>();
   const [endPage, setEndPage] = useState<number | undefined>();
   const [pagesPerDayCount, setPagesPerDayCount] = useState<
@@ -65,6 +70,15 @@ export const BookPlanner = () => {
       return pageReadTimeMinutes;
     }
   }, [pageContent, readingSpeed]);
+
+  const handleCopyPlan = useCallback(() => {
+    const success = copy(resultPlan!);
+    if (success) {
+      toast({
+        title: "План чтения скопирован",
+      });
+    }
+  }, [resultPlan]);
 
   return (
     <div className="grid gap-8">
@@ -173,6 +187,15 @@ export const BookPlanner = () => {
                 />
               </div>
             )}
+            <Button
+              type="button"
+              size="sm"
+              className="px-3 mb-4"
+              onClick={handleCopyPlan}
+            >
+              <span>Скопировать план</span>
+              <Copy />
+            </Button>
             <Textarea
               id="readPlan"
               readOnly
