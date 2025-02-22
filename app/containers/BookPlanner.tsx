@@ -7,6 +7,25 @@ import { useCallback, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import copy from "copy-to-clipboard";
 import { useToast } from "@/hooks/use-toast";
+import { Calendar } from "@/components/ui/calendar";
+import { format } from "date-fns";
+import { ru } from "date-fns/locale";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+// import {
+//   Form,
+//   FormControl,
+//   FormDescription,
+//   FormField,
+//   FormItem,
+//   FormLabel,
+//   FormMessage,
+// } from "@/components/ui/form";
+import { CalendarIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const round = (num: number) =>
   Math.round((num + Number.EPSILON) * 100) / 100;
@@ -18,6 +37,7 @@ export const BookPlanner = () => {
   const [pagesPerDayCount, setPagesPerDayCount] = useState<
     number | undefined
   >();
+  const [startDate, setStartDate] = useState<Date | undefined>(new Date());
   const [pageContent, setPageContent] = useState<string | undefined>();
   const [readingSpeed, setReadingSpeed] = useState<number | undefined>(
     120
@@ -34,10 +54,10 @@ export const BookPlanner = () => {
     pagesReadCountDays && pagesReadCountDays / 30;
 
   const resultPlan = useMemo(() => {
-    if (startPage && endPage && pagesPerDayCount) {
+    if (startPage && endPage && pagesPerDayCount && startDate) {
       const days = [];
       let currentDayIndex = 1;
-      const currentDate = new Date();
+      const currentDate = new Date(startDate);
       for (
         let currentStartPage = startPage;
         currentStartPage < endPage;
@@ -61,7 +81,7 @@ export const BookPlanner = () => {
 
       return days.join("\n");
     }
-  }, [startPage, endPage, pagesPerDayCount]);
+  }, [startPage, endPage, pagesPerDayCount, startDate]);
 
   const readTimeMinutes = useMemo(() => {
     if (pageContent && readingSpeed) {
@@ -117,6 +137,38 @@ export const BookPlanner = () => {
           placeholder="4"
           onChange={(e) => setPagesPerDayCount(+e.target.value)}
         />
+      </div>
+      <div className="grid w-full max-w-sm items-center gap-1.5">
+        <Label>Время начала</Label>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant={"outline"}
+              className={cn(
+                "w-[240px] pl-3 text-left font-normal",
+                !startDate && "text-muted-foreground"
+              )}
+            >
+              {startDate ? (
+                format(startDate, "PPP", { locale: ru })
+              ) : (
+                <span>Выбери дату</span>
+              )}
+              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={startDate}
+              onSelect={(newDate) => setStartDate(newDate)}
+              // disabled={(date) =>
+              //   date > new Date() || date < new Date("1900-01-01")
+              // }
+              locale={ru}
+            />
+          </PopoverContent>
+        </Popover>
       </div>
       <div className="grid w-full max-w-sm items-center gap-1.5">
         <Label htmlFor="pageContent">
