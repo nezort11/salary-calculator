@@ -11,17 +11,17 @@ import { BookPlanner } from "./containers/BookPlanner";
 export default function Home() {
   return (
     <div className="m-8 flex justify-center font-[family-name:var(--font-geist-sans)]">
-      <Tabs defaultValue="account" className="w-[400px]">
+      <Tabs defaultValue="reading" className="w-[400px]">
         <TabsList className="mb-8">
-          <TabsTrigger value="account">💰 Salary Calculator</TabsTrigger>
-          <TabsTrigger value="password">📖 Read Planner</TabsTrigger>
+          <TabsTrigger value="reading">📖 Read Planner</TabsTrigger>
+          <TabsTrigger value="salary">💰 Salary Calculator</TabsTrigger>
         </TabsList>
         <main>
-          <TabsContent value="account">
-            <SalaryCalculator />
-          </TabsContent>
-          <TabsContent value="password">
+          <TabsContent value="reading">
             <BookPlanner />
+          </TabsContent>
+          <TabsContent value="salary">
+            <SalaryCalculator />
           </TabsContent>
         </main>
       </Tabs>

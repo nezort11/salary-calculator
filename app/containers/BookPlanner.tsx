@@ -3,7 +3,7 @@ import { Copy } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import copy from "copy-to-clipboard";
 import { useToast } from "@/hooks/use-toast";
@@ -26,12 +26,17 @@ import {
 // } from "@/components/ui/form";
 import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { jsPDF } from "jspdf";
+import html2canvas from "html2canvas";
 
-const round = (num: number) =>
-  Math.round((num + Number.EPSILON) * 100) / 100;
+const round = (num: number, digits: number = 2) => {
+  const factor = 10 ** digits;
+  return Math.round(num * factor) / factor;
+};
 
 export const BookPlanner = () => {
   const { toast } = useToast();
+  const pdfRef = useRef<HTMLDivElement | null>(null);
   const [startPage, setStartPage] = useState<number | undefined>();
   const [endPage, setEndPage] = useState<number | undefined>();
   const [pagesPerDayCount, setPagesPerDayCount] = useState<
@@ -42,6 +47,7 @@ export const BookPlanner = () => {
   const [readingSpeed, setReadingSpeed] = useState<number | undefined>(
     120
   );
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const pagesReadCount =
     startPage && endPage && endPage > startPage && endPage - startPage + 1;
@@ -98,7 +104,94 @@ export const BookPlanner = () => {
         title: "План чтения скопирован",
       });
     }
+  }, [resultPlan, toast]);
+
+  const planLines = useMemo(() => {
+    return resultPlan ? resultPlan.split("\n").filter(Boolean) : [];
   }, [resultPlan]);
+
+  const handleDownloadPdf = useCallback(async () => {
+    if (!pdfRef.current || planLines.length === 0) {
+      return;
+    }
+    try {
+      setIsGenerating(true);
+
+      // A4 portrait in CSS pixels (assuming 96 DPI)
+      const MM_TO_PX = 96 / 25.4;
+      const A4_WIDTH_MM = 210;
+      const A4_HEIGHT_MM = 297;
+      const PAGE_WIDTH_PX = Math.floor(A4_WIDTH_MM * MM_TO_PX);
+      const PAGE_HEIGHT_PX = Math.floor(A4_HEIGHT_MM * MM_TO_PX);
+      const MARGIN_MM = 10;
+      const MARGIN_PX = Math.floor(MARGIN_MM * MM_TO_PX);
+
+      const node = pdfRef.current;
+      // Ensure base dimensions
+      node.style.width = `${PAGE_WIDTH_PX}px`;
+      node.style.height = `${PAGE_HEIGHT_PX}px`;
+      node.style.padding = `${MARGIN_PX}px`;
+
+      const originalFontSize = node.style.fontSize || "";
+      let fontSize = 18; // start big
+      const minFontSize = 9; // don't go below this
+
+      // Iteratively shrink font until content fits within one page height
+      for (let i = 0; i < 20; i++) {
+        node.style.fontSize = `${fontSize}px`;
+        // Wait for layout
+        await new Promise((r) => requestAnimationFrame(r));
+        const fits = node.scrollHeight <= node.clientHeight;
+        if (fits) {
+          break;
+        }
+        fontSize = fontSize - 1;
+        if (fontSize <= minFontSize) {
+          break;
+        }
+      }
+
+      // Render at 2x scale for sharper PDF
+      const canvas = await html2canvas(node, {
+        scale: 2,
+        backgroundColor: "#ffffff",
+        useCORS: true,
+      });
+      const imgData = canvas.toDataURL("image/png");
+
+      const pdf = new jsPDF({
+        orientation: "p",
+        unit: "mm",
+        format: "a4",
+      });
+      const pageWidthMm = A4_WIDTH_MM;
+      const pageHeightMm = A4_HEIGHT_MM;
+      pdf.addImage(
+        imgData,
+        "PNG",
+        0,
+        0,
+        pageWidthMm,
+        pageHeightMm,
+        undefined,
+        "FAST"
+      );
+      pdf.save(
+        `План чтения ${
+          startDate ? format(startDate, "PPP", { locale: ru }) : "-"
+        }.pdf`
+      );
+
+      // Restore font-size to avoid affecting UI elsewhere
+      node.style.fontSize = originalFontSize;
+
+      toast({ title: "PDF сохранён" });
+    } catch {
+      toast({ title: "Ошибка при создании PDF" });
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [planLines, toast]);
 
   return (
     <div className="grid gap-8">
@@ -176,7 +269,7 @@ export const BookPlanner = () => {
         </Label>
         <Textarea
           id="pageContent"
-          rows={5}
+          rows={2}
           placeholder="Равным образом, сложившаяся структура организации способствует повышению качества системы обучения кадров, соответствующей насущным потребностям. Принимая во внимание показатели успешности, курс на социально-ориентированный национальный проект не оставляет шанса для глубокомысленных рассуждений. Высокий уровень вовлечения представителей целевой аудитории является четким доказательством простого факта: высокотехнологичная концепция общественного уклада создаёт необходимость включения в производственный план целого ряда внеочередных мероприятий с учётом комплекса благоприятных перспектив."
           onChange={(e) => setPageContent(e.target.value)}
         />
@@ -208,7 +301,7 @@ export const BookPlanner = () => {
                 <Input
                   id="readCountDays"
                   readOnly
-                  value={round(pagesReadCountDays)}
+                  value={round(pagesReadCountDays, 0)}
                 />
               </div>
               <div>
@@ -248,12 +341,102 @@ export const BookPlanner = () => {
               <span>Скопировать план</span>
               <Copy />
             </Button>
+            <Button
+              type="button"
+              size="sm"
+              className="px-3 mb-4 ml-2"
+              onClick={handleDownloadPdf}
+              disabled={isGenerating}
+            >
+              <span>
+                {isGenerating ? "Готовим PDF..." : "Скачать PDF"}
+              </span>
+            </Button>
             <Textarea
               id="readPlan"
               readOnly
               value={resultPlan}
               rows={20}
             />
+            {/* Hidden/offscreen A4 layout for PDF rendering */}
+            {planLines.length > 0 && (
+              <div
+                ref={pdfRef}
+                aria-hidden
+                style={{
+                  position: "fixed",
+                  left: -99999,
+                  top: -99999,
+                  backgroundColor: "#ffffff",
+                  color: "#000000",
+                  fontFamily:
+                    'Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, Noto Sans, "Helvetica Neue", "Apple Color Emoji", "Segoe UI Emoji"',
+                  lineHeight: 1.3,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    height: "100%",
+                    width: "100%",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  <div
+                    style={{
+                      textAlign: "center",
+                      fontWeight: 700,
+                      marginBottom: 8,
+                    }}
+                  >
+                    План чтения
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "0.9em",
+                      textAlign: "center",
+                      marginBottom: 12,
+                      opacity: 0.8,
+                    }}
+                  >
+                    Начало:{" "}
+                    {startDate
+                      ? format(startDate, "PPP", { locale: ru })
+                      : "-"}{" "}
+                    • Дней: {round(pagesReadCountDays!, 0)}
+                  </div>
+                  <div
+                    style={{
+                      columnCount: 2,
+                      columnGap: 24,
+                      width: "100%",
+                      boxSizing: "border-box",
+                    }}
+                  >
+                    {planLines.map((line, idx) => (
+                      <div
+                        key={idx}
+                        style={{ breakInside: "avoid", marginBottom: 6 }}
+                      >
+                        {line}
+                      </div>
+                    ))}
+                  </div>
+                  <div
+                    style={{
+                      marginTop: "auto",
+                      textAlign: "right",
+                      fontSize: "0.75em",
+                      opacity: 0.6,
+                    }}
+                  >
+                    Создано в{" "}
+                    <a href="https://t.me/calcsalarybot">@calcsalarybot</a>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
     </div>
