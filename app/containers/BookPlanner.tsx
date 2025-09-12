@@ -27,6 +27,7 @@ import {
 import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { jsPDF } from "jspdf";
+import { downloadFile } from "@telegram-apps/sdk";
 import html2canvas from "html2canvas";
 
 const round = (num: number, digits: number = 2) => {
@@ -176,11 +177,47 @@ export const BookPlanner = () => {
         undefined,
         "FAST"
       );
-      pdf.save(
-        `План чтения ${
-          startDate ? format(startDate, "PPP", { locale: ru }) : "-"
-        }.pdf`
-      );
+      const fileName = `План чтения ${
+        startDate ? format(startDate, "PPP", { locale: ru }) : "-"
+      }.pdf`;
+
+      // Upload the client-generated PDF to temporary Blob storage to get an HTTPS URL
+      const pdfBlob = pdf.output("blob");
+      const uploadResp = await fetch("/api/blob-upload", {
+        method: "POST",
+        headers: {
+          "content-type": "application/pdf",
+          "x-filename": encodeURIComponent(fileName),
+          "x-ttl": "600",
+          "x-access": "public",
+        },
+        body: pdfBlob,
+      });
+      const uploadJson = (await uploadResp.json()) as {
+        url?: string;
+        downloadUrl?: string;
+      };
+      const httpsUrl = uploadJson?.downloadUrl || uploadJson?.url;
+
+      let usedTelegram = false;
+      if (httpsUrl) {
+        const [isAvailable, promise] = downloadFile.ifAvailable(
+          httpsUrl,
+          fileName
+        );
+        if (isAvailable) {
+          usedTelegram = true;
+          await promise.catch(() => {
+            usedTelegram = false;
+          });
+        }
+      }
+
+      if (!usedTelegram) {
+        // Fallback to standard browser download with correct filename
+        // pdf.save(fileName);
+        window.open(httpsUrl, "_blank");
+      }
 
       // Restore font-size to avoid affecting UI elsewhere
       node.style.fontSize = originalFontSize;
@@ -191,7 +228,7 @@ export const BookPlanner = () => {
     } finally {
       setIsGenerating(false);
     }
-  }, [planLines, toast]);
+  }, [planLines, toast, startDate]);
 
   return (
     <div className="grid gap-8">
