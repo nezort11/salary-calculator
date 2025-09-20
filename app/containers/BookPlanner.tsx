@@ -181,42 +181,59 @@ export const BookPlanner = () => {
         startDate ? format(startDate, "PPP", { locale: ru }) : "-"
       }.pdf`;
 
-      // Upload the client-generated PDF to temporary Blob storage to get an HTTPS URL
-      const pdfBlob = pdf.output("blob");
-      const uploadResp = await fetch("/api/blob-upload", {
-        method: "POST",
-        headers: {
-          "content-type": "application/pdf",
-          "x-filename": encodeURIComponent(fileName),
-          "x-ttl": "600",
-          "x-access": "public",
-        },
-        body: pdfBlob,
-      });
-      const uploadJson = (await uploadResp.json()) as {
-        url?: string;
-        downloadUrl?: string;
-      };
-      const httpsUrl = uploadJson?.downloadUrl || uploadJson?.url;
+      // If inside Telegram Mini App, send the PDF to bot chat via server API
+      let sentViaTelegram = false;
+      try {
+        const tg: any =
+          (typeof window !== "undefined" &&
+            (window as any).Telegram?.WebApp) ||
+          undefined;
+        const isTMA =
+          !!tg?.platform ||
+          /tgWebAppPlatform|tgWebAppData/.test(
+            `${window.location.hash} ${window.location.search}`
+          );
+        if (isTMA) {
+          const initData =
+            tg?.initData ||
+            (() => {
+              const hash = window.location.hash?.startsWith("#")
+                ? window.location.hash.slice(1)
+                : window.location.hash || "";
+              const hashParams = new URLSearchParams(hash);
+              const searchParams = new URLSearchParams(
+                window.location.search
+              );
+              const encoded =
+                hashParams.get("tgWebAppData") ||
+                searchParams.get("tgWebAppData");
+              return encoded ? decodeURIComponent(encoded) : undefined;
+            })();
 
-      let usedTelegram = false;
-      if (httpsUrl) {
-        const [isAvailable, promise] = downloadFile.ifAvailable(
-          httpsUrl,
-          fileName
-        );
-        if (isAvailable) {
-          usedTelegram = true;
-          await promise.catch(() => {
-            usedTelegram = false;
-          });
+          if (initData) {
+            const dataUrl = pdf.output("datauristring");
+            const resp = await fetch("/api/tg-send-plan", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                initData,
+                fileName,
+                fileDataUrl: dataUrl,
+              }),
+            });
+            const json = await resp.json().catch(() => ({}));
+            if (resp.ok && json?.ok) {
+              sentViaTelegram = true;
+            }
+          }
         }
+      } catch {
+        // ignore TMA sending errors, we will fallback to browser download
       }
 
-      if (!usedTelegram) {
+      if (!sentViaTelegram) {
         // Fallback to standard browser download with correct filename
-        // pdf.save(fileName);
-        window.open(httpsUrl, "_blank");
+        pdf.save(fileName);
       }
 
       // Restore font-size to avoid affecting UI elsewhere
