@@ -78,8 +78,9 @@ export const BookPlanner = () => {
             month: "short",
           }
         );
+        const dayOfWeek = format(currentDate, "EEEEEE", { locale: ru });
         days.push(
-          `${currentDateDay} ${currentMonthNameLocalized} (день ${currentDayIndex}) — стр. ${currentStartPage}-${currentEndPage}`
+          `${dayOfWeek}, ${currentDateDay} ${currentMonthNameLocalized} (день ${currentDayIndex}) — стр. ${currentStartPage}-${currentEndPage}`
         );
 
         currentDayIndex += 1;
