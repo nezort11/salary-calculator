@@ -33,8 +33,8 @@ export default function RootLayout({
       >
         <TelegramInit />
         {children}
+        <Toaster />
       </body>
-      <Toaster />
     </html>
   );
 }
