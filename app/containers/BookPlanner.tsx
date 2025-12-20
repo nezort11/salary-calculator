@@ -27,7 +27,6 @@ import {
 import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { jsPDF } from "jspdf";
-import { downloadFile } from "@telegram-apps/sdk";
 import html2canvas from "html2canvas";
 
 const round = (num: number, digits: number = 2) => {
