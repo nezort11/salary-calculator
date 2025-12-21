@@ -49,6 +49,7 @@ TELEGRAM_BOT_TOKEN=your_bot_token_here
 BLOB_READ_WRITE_TOKEN=your_blob_token_here
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 NEXT_PUBLIC_BLOB_STORE_ID=your_blob_store_id_here
+WEBHOOK_URL=https://yourdomain.com/api/webhook
 ```
 
 #### 3. Run the Application
@@ -128,4 +129,7 @@ NEXT_PUBLIC_APP_URL=https://yourdomain.com
 
 # Blob Store ID (required for fetching content in web app)
 NEXT_PUBLIC_BLOB_STORE_ID=your_blob_store_id_here
+
+# Webhook URL (required for webhook.sh script)
+WEBHOOK_URL=https://yourdomain.com/api/webhook
 ```

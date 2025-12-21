@@ -201,7 +201,7 @@ export default function ReaderPage() {
             </div>
           </div>
           <p className="text-xs text-gray-400">
-            💡 Tip: Each chunk contains complete sentences and won't exceed
+            💡 Tip: Each chunk contains complete sentences and won&apos;t exceed
             this character limit
           </p>
         </div>
@@ -212,7 +212,7 @@ export default function ReaderPage() {
             📱 How to use:
           </h2>
           <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
-            <li>Tap the "Copy" button on any chunk below</li>
+            <li>Tap the &quot;Copy&quot; button on any chunk below</li>
             <li>Open ChatGPT app and paste the text</li>
             <li>
               ChatGPT will repeat the text - tap the speaker icon to listen

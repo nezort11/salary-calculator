@@ -5,13 +5,17 @@ set -e
 
 # Load environment
 export TELEGRAM_BOT_TOKEN=$(grep TELEGRAM_BOT_TOKEN .env.local | cut -d '=' -f2 | tr -d '"')
+export WEBHOOK_URL=$(grep WEBHOOK_URL .env.local | cut -d '=' -f2 | tr -d '"')
 
 if [ -z "$TELEGRAM_BOT_TOKEN" ]; then
     echo "❌ Error: TELEGRAM_BOT_TOKEN not found in .env.local"
     exit 1
 fi
 
-WEBHOOK_URL="https://salary-calculator-n1l354jc4-nezort11s-projects.vercel.app/api/webhook"
+if [ -z "$WEBHOOK_URL" ]; then
+    echo "❌ Error: WEBHOOK_URL not found in .env.local"
+    exit 1
+fi
 
 case "$1" in
     set)
@@ -55,4 +59,3 @@ case "$1" in
         exit 1
         ;;
 esac
-
