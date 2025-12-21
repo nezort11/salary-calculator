@@ -169,6 +169,24 @@ export function generateContentId(): string {
 }
 
 /**
+ * Creates a prompt for a content chunk
+ * @param chunkText The text of the chunk
+ * @returns The formatted prompt
+ */
+function createChunkPrompt(chunkText: string): string {
+  return `Please clean up and reformat the following text to make it perfect for text-to-speech (TTS) reading. Remove any:
+- Page numbers (e.g., "2/23", "page 5")
+- Strange formatting artifacts
+- Excessive line breaks or spacing issues
+- Headers/footers that break the flow
+- Any other elements that would sound awkward when spoken aloud
+
+Keep the meaning and content intact, but make it flow naturally as if it were written specifically to be read aloud. Reply with only the cleaned text:
+
+${chunkText}`;
+}
+
+/**
  * Creates chunks from text (client-side chunking)
  * @param text The full text to chunk
  * @param sentencesPerChunk Number of sentences per chunk
@@ -199,11 +217,10 @@ export function createChunksFromText(
       const chunkText = currentChunk.join(" ").trim();
       if (chunkText.length > 0) {
         const chunkId = `chunk-${chunks.length + 1}`;
-        const prompt = `Please reply with exactly this text:\n\n${chunkText}`;
         chunks.push({
           id: chunkId,
           text: chunkText,
-          prompt: prompt,
+          prompt: createChunkPrompt(chunkText),
         });
       }
 
@@ -222,11 +239,10 @@ export function createChunksFromText(
     const chunkText = currentChunk.join(" ").trim();
     if (chunkText.length > 0) {
       const chunkId = `chunk-${chunks.length + 1}`;
-      const prompt = `Please reply with exactly this text:\n\n${chunkText}`;
       chunks.push({
         id: chunkId,
         text: chunkText,
-        prompt: prompt,
+        prompt: createChunkPrompt(chunkText),
       });
     }
   }
