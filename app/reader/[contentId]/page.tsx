@@ -31,9 +31,9 @@ export default function ReaderPage() {
   const [maxCharsPerChunk, setMaxCharsPerChunk] = useState(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("maxCharsPerChunk");
-      return saved ? parseInt(saved, 10) : 1000;
+      return saved ? parseInt(saved, 10) : 10000;
     }
-    return 1000;
+    return 10000;
   });
 
   // Save to localStorage when changed
@@ -201,8 +201,8 @@ export default function ReaderPage() {
             </div>
           </div>
           <p className="text-xs text-gray-400">
-            💡 Tip: Each chunk contains complete sentences and won&apos;t exceed
-            this character limit
+            💡 Tip: Each chunk contains complete sentences and won&apos;t
+            exceed this character limit
           </p>
         </div>
 
