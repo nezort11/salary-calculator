@@ -74,6 +74,10 @@ export function getAppBaseUrl(): string {
  */
 export function isValidUrl(text: string): boolean {
   try {
+    // Reject URLs with unencoded spaces or other problematic characters
+    if (text.includes(" ")) {
+      return false;
+    }
     const url = new URL(text);
     return url.protocol === "http:" || url.protocol === "https:";
   } catch {

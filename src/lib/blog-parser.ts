@@ -17,9 +17,7 @@ export interface ParsedContent {
  * @param sentencesPerChunk Number of sentences per chunk (default: 15)
  * @returns Parsed content with chunks
  */
-export async function parseBlogPost(
-  url: string
-): Promise<ParsedContent> {
+export async function parseBlogPost(url: string): Promise<ParsedContent> {
   // Fetch the HTML content
   const response = await fetch(url);
   if (!response.ok) {
@@ -100,26 +98,60 @@ export async function parseBlogPost(
  * Exported for client-side chunking
  */
 export function splitIntoSentences(text: string): string[] {
-  // Basic sentence splitting: split on . ! ? followed by space or newline
-  // This is a simple implementation; could be improved with NLP libraries
+  // Improved sentence splitting that handles common abbreviations
+  // Split on . ! ? followed by space, but not if preceded by common abbreviations
   const sentences: string[] = [];
   const lines = text.split(/\n+/);
 
   for (const line of lines) {
-    // Split by sentence-ending punctuation
-    const lineSentences = line
-      .split(/([.!?]+)\s+/)
-      .reduce((acc: string[], part, idx, arr) => {
-        if (idx % 2 === 0) {
-          // Text part
-          const nextPart = arr[idx + 1] || "";
-          const sentence = (part + nextPart).trim();
-          if (sentence.length > 0) {
-            acc.push(sentence);
+    // Use a more careful approach: split on sentence endings but preserve abbreviations
+    const lineSentences: string[] = [];
+
+    // Common abbreviations that shouldn't end sentences
+    const abbreviations =
+      /\b(?:Dr|Mr|Mrs|Ms|Prof|Sr|Jr|Inc|Ltd|Corp|Co|et al|e\.g|i\.e|vs|etc|ca|cf|al)\./i;
+
+    let currentSentence = "";
+    let i = 0;
+
+    while (i < line.length) {
+      currentSentence += line[i];
+
+      // Check for sentence-ending punctuation followed by space or end of line
+      if (/[.!?]/.test(line[i])) {
+        // Look ahead to see if this is followed by a space and potentially more text
+        const remaining = line.substring(i + 1);
+        const nextSpaceMatch = remaining.match(/^\s+/);
+        const nextWordMatch = remaining.match(/^\s*(\w)/);
+
+        if (nextSpaceMatch && nextWordMatch) {
+          // There's a space followed by a word - this might be a sentence end
+          // But check if the punctuation is preceded by a common abbreviation
+          const lastWordMatch = currentSentence.trim().match(/\b\w+\.$/);
+          const isAbbreviation =
+            lastWordMatch && abbreviations.test(lastWordMatch[0]);
+
+          if (!isAbbreviation) {
+            // This looks like a real sentence end
+            lineSentences.push(currentSentence.trim());
+            currentSentence = "";
+            i += nextSpaceMatch[0].length; // Skip the space(s)
+            continue;
           }
+        } else if (i === line.length - 1) {
+          // End of line, add the current sentence
+          lineSentences.push(currentSentence.trim());
+          break;
         }
-        return acc;
-      }, []);
+      }
+
+      i++;
+    }
+
+    // Add any remaining content
+    if (currentSentence.trim().length > 0) {
+      lineSentences.push(currentSentence.trim());
+    }
 
     sentences.push(...lineSentences);
   }
@@ -150,16 +182,19 @@ export function createChunksFromText(
   const chunks: ContentChunk[] = [];
 
   let currentChunk: string[] = [];
-  let currentLength = 0;
+  let currentLength = 0; // Length of joined text including spaces
 
   for (const sentence of sentences) {
     const sentenceLength = sentence.length;
 
+    // Calculate what the new length would be if we add this sentence
+    const newLength =
+      currentChunk.length === 0
+        ? sentenceLength
+        : currentLength + 1 + sentenceLength; // +1 for space
+
     // If adding this sentence would exceed the limit and we have sentences already
-    if (
-      currentLength + sentenceLength > maxCharsPerChunk &&
-      currentChunk.length > 0
-    ) {
+    if (newLength > maxCharsPerChunk && currentChunk.length > 0) {
       // Save the current chunk
       const chunkText = currentChunk.join(" ").trim();
       if (chunkText.length > 0) {
@@ -178,7 +213,7 @@ export function createChunksFromText(
     } else {
       // Add sentence to current chunk
       currentChunk.push(sentence);
-      currentLength += sentenceLength + 1; // +1 for the space between sentences
+      currentLength = newLength;
     }
   }
 
