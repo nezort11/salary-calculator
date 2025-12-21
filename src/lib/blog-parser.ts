@@ -18,8 +18,7 @@ export interface ParsedContent {
  * @returns Parsed content with chunks
  */
 export async function parseBlogPost(
-  url: string,
-  sentencesPerChunk: number
+  url: string
 ): Promise<ParsedContent> {
   // Fetch the HTML content
   const response = await fetch(url);

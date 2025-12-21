@@ -1,4 +1,4 @@
-import { Bot, Context } from "grammy";
+import { Bot } from "grammy";
 import { parseBlogPost, generateContentId } from "./blog-parser";
 import { parsePDF } from "./pdf-parser";
 import { put } from "@vercel/blob";
@@ -46,12 +46,23 @@ export async function storeContent(
  * Gets the base URL for the web app (for generating reader links)
  */
 export function getAppBaseUrl(): string {
-  return (
-    process.env.NEXT_PUBLIC_APP_URL ||
-    (process.env.NODE_ENV === "production"
-      ? "https://yourdomain.com"
-      : "http://localhost:3000")
+  const envUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  console.log(
+    `🌐 getAppBaseUrl: NEXT_PUBLIC_APP_URL="${process.env.NEXT_PUBLIC_APP_URL}", trimmed="${envUrl}", NODE_ENV="${process.env.NODE_ENV}"`
   );
+
+  if (envUrl) {
+    console.log(`🌐 Using env URL: "${envUrl}"`);
+    return envUrl;
+  }
+
+  const fallbackUrl =
+    process.env.NODE_ENV === "production"
+      ? "https://salary-calculator-gray.vercel.app"
+      : "http://localhost:3000";
+
+  console.log(`🌐 Using fallback URL: "${fallbackUrl}"`);
+  return fallbackUrl;
 }
 
 // ============================================================================
@@ -162,13 +173,8 @@ export function setupBotHandlers(bot: Bot, token: string) {
         )} KB)`
       );
 
-      // Parse the PDF with 15 sentences per chunk (configurable)
-      const sentencesPerChunk = 15;
-      const parsedContent = await parsePDF(
-        buffer,
-        sentencesPerChunk,
-        fileName
-      );
+      // Parse the PDF
+      const parsedContent = await parsePDF(buffer, fileName);
       console.log(
         `✅ Parsed: ${parsedContent.title} (${parsedContent.pageCount} pages, ${parsedContent.text.length} characters)`
       );
@@ -182,18 +188,30 @@ export function setupBotHandlers(bot: Bot, token: string) {
 
       // Get the base URL for the web app
       const baseUrl = getAppBaseUrl();
-      const readerUrl = `${baseUrl}/reader/${contentId}`;
+      const readerUrl = `${baseUrl}/reader/${contentId}`.replace(
+        /\s/g,
+        ""
+      ); // Remove any whitespace
+      console.log(
+        `🔗 Generated reader URL: "${readerUrl}" (length: ${readerUrl.length})`
+      );
 
       // Send success message with the web app link
+      const message = `✅ Done! Your PDF is ready.
+
+📖 Title: ${parsedContent.title}
+📄 Pages: ${parsedContent.pageCount}
+📝 You can adjust chunk size in the web app
+
+Open the web app to start listening:
+${readerUrl}
+
+Tap the link, adjust chunk size, copy each chunk, and paste in ChatGPT app to listen!`;
+
       await ctx.api.editMessageText(
         ctx.chat.id,
         processingMsg.message_id,
-        "✅ Done! Your PDF is ready.\n\n" +
-          `📖 Title: ${parsedContent.title}\n` +
-          `📄 Pages: ${parsedContent.pageCount}\n` +
-          `📝 You can adjust chunk size in the web app\n\n` +
-          `Open the web app to start listening:\n${readerUrl}\n\n` +
-          "Tap the link, adjust chunk size, copy each chunk, and paste in ChatGPT app to listen!"
+        message
       );
 
       console.log(`✨ Success! Sent link to user: ${readerUrl}`);
@@ -246,10 +264,9 @@ export function setupBotHandlers(bot: Bot, token: string) {
     );
 
     try {
-      // Parse the blog post with 15 sentences per chunk (configurable)
+      // Parse the blog post
       console.log(`📖 Parsing: ${url}`);
-      const sentencesPerChunk = 15;
-      const parsedContent = await parseBlogPost(url, sentencesPerChunk);
+      const parsedContent = await parseBlogPost(url);
       console.log(
         `✅ Parsed: ${parsedContent.title} (${parsedContent.text.length} characters)`
       );
@@ -263,17 +280,29 @@ export function setupBotHandlers(bot: Bot, token: string) {
 
       // Get the base URL for the web app
       const baseUrl = getAppBaseUrl();
-      const readerUrl = `${baseUrl}/reader/${contentId}`;
+      const readerUrl = `${baseUrl}/reader/${contentId}`.replace(
+        /\s/g,
+        ""
+      ); // Remove any whitespace
+      console.log(
+        `🔗 Generated reader URL: "${readerUrl}" (length: ${readerUrl.length})`
+      );
 
       // Send success message with the web app link
+      const message = `✅ Done! Your blog post is ready.
+
+📖 Title: ${parsedContent.title}
+📝 You can adjust chunk size in the web app
+
+Open the web app to start listening:
+${readerUrl}
+
+Tap the link, adjust chunk size, copy each chunk, and paste in ChatGPT app to listen!`;
+
       await ctx.api.editMessageText(
         ctx.chat.id,
         processingMsg.message_id,
-        "✅ Done! Your blog post is ready.\n\n" +
-          `📖 Title: ${parsedContent.title}\n` +
-          `📝 You can adjust chunk size in the web app\n\n` +
-          `Open the web app to start listening:\n${readerUrl}\n\n` +
-          "Tap the link, adjust chunk size, copy each chunk, and paste in ChatGPT app to listen!"
+        message
       );
 
       console.log(`✨ Success! Sent link to user: ${readerUrl}`);

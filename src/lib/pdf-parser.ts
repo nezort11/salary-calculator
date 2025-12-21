@@ -1,12 +1,11 @@
-import { ContentChunk } from "./blog-parser";
-
-// Lazy load pdf-parse to avoid build-time errors
-let pdfParse: any = null;
-async function loadPdfParse() {
-  if (!pdfParse) {
-    pdfParse = require("pdf-parse");
+// Lazy load pdf-extraction
+let pdfExtract: any = null;
+async function loadPdfExtract() {
+  if (!pdfExtract) {
+    const pdfExtractModule = await import("pdf-extraction");
+    pdfExtract = pdfExtractModule.default;
   }
-  return pdfParse;
+  return pdfExtract;
 }
 
 export interface ParsedPDFContent {
@@ -24,22 +23,28 @@ export interface ParsedPDFContent {
  */
 export async function parsePDF(
   buffer: Buffer,
-  sentencesPerChunk: number = 15,
   fileName?: string
 ): Promise<ParsedPDFContent> {
-  try {
-    // Load pdf-parse dynamically
-    const parse = await loadPdfParse();
+  // Suppress console warnings/errors during PDF parsing to avoid noisy logs
+  // The pdf-extraction library can be verbose about PDF structural issues
+  const originalWarn = console.warn;
+  const originalError = console.error;
+  console.warn = () => {}; // Suppress warnings
+  console.error = () => {}; // Suppress errors
 
-    // Parse the PDF (pdf-parse v1 API)
-    const result = await parse(buffer);
+  try {
+    // Load pdf-extraction dynamically
+    const extractPdf = await loadPdfExtract();
+
+    // Parse the PDF
+    const result = await extractPdf(buffer);
 
     // Extract metadata
     const title = extractTitle(result, fileName);
-    const pageCount = result.numpages;
+    const pageCount = result.numpages || 0;
 
-    // Get the text content
-    let text = result.text;
+    // Get the text content (pdf-extraction returns text directly)
+    let text = result.text || "";
 
     // Clean up the text
     text = cleanPDFText(text);
@@ -51,12 +56,28 @@ export async function parsePDF(
       pageCount,
     };
   } catch (error) {
-    console.error("PDF parsing error:", error);
+    // Restore console methods before handling errors
+    console.warn = originalWarn;
+    console.error = originalError;
+
+    // pdf-parse throws various errors for invalid PDFs
+    if (error instanceof Error) {
+      const errorMessage = error.message.toLowerCase();
+      if (errorMessage.includes('invalid') || errorMessage.includes('corrupt') ||
+          errorMessage.includes('malformed') || errorMessage.includes('pdf')) {
+        throw new Error(`PDF has invalid structure and cannot be parsed: ${error.message}`);
+      }
+    }
+
     throw new Error(
       `Failed to parse PDF: ${
         error instanceof Error ? error.message : "Unknown error"
       }`
     );
+  } finally {
+    // Always restore console methods
+    console.warn = originalWarn;
+    console.error = originalError;
   }
 }
 
@@ -64,9 +85,14 @@ export async function parsePDF(
  * Extracts title from PDF metadata or filename
  */
 function extractTitle(data: any, fileName?: string): string {
-  // Try to get title from PDF metadata
+  // Try to get title from PDF metadata (pdf-parse structure)
   if (data.info?.Title && data.info.Title.trim().length > 0) {
     return data.info.Title.trim();
+  }
+
+  // Try to get title from metadata object if it exists
+  if (data.metadata?.Title && data.metadata.Title.trim().length > 0) {
+    return data.metadata.Title.trim();
   }
 
   // Fall back to filename
@@ -116,35 +142,4 @@ function cleanPDFText(text: string): string {
     .join("\n");
 
   return text.trim();
-}
-
-/**
- * Splits text into sentences
- */
-function splitIntoSentences(text: string): string[] {
-  const sentences: string[] = [];
-  const paragraphs = text.split(/\n\n+/);
-
-  for (const paragraph of paragraphs) {
-    if (paragraph.trim().length === 0) continue;
-
-    // Split by sentence-ending punctuation
-    const paragraphSentences = paragraph
-      .split(/([.!?]+)\s+/)
-      .reduce((acc: string[], part, idx, arr) => {
-        if (idx % 2 === 0) {
-          // Text part
-          const nextPart = arr[idx + 1] || "";
-          const sentence = (part + nextPart).trim();
-          if (sentence.length > 0) {
-            acc.push(sentence);
-          }
-        }
-        return acc;
-      }, []);
-
-    sentences.push(...paragraphSentences);
-  }
-
-  return sentences.filter((s) => s.length > 0);
 }

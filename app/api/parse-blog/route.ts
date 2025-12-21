@@ -1,22 +1,17 @@
 import { NextRequest } from "next/server";
 import { put } from "@vercel/blob";
-import {
-  parseBlogPost,
-  generateContentId,
-  ParsedContent,
-} from "@/src/lib/blog-parser";
+import { parseBlogPost, generateContentId } from "@/src/lib/blog-parser";
 
 export const runtime = "nodejs";
 
 type ParseBlogRequest = {
   url: string;
-  sentencesPerChunk?: number;
 };
 
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as ParseBlogRequest;
-    const { url, sentencesPerChunk = 15 } = body || {};
+    const { url } = body || {};
 
     if (!url) {
       return new Response(JSON.stringify({ error: "url_required" }), {
@@ -36,7 +31,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Parse the blog post
-    const parsedContent = await parseBlogPost(url, sentencesPerChunk);
+    const parsedContent = await parseBlogPost(url);
 
     // Generate a unique content ID
     const contentId = generateContentId();
@@ -57,7 +52,6 @@ export async function POST(req: NextRequest) {
         ok: true,
         contentId,
         title: parsedContent.title,
-        totalChunks: parsedContent.totalChunks,
         url: blob.url,
       }),
       {
