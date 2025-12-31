@@ -43,33 +43,95 @@ export const BookPlanner = () => {
     number | undefined
   >();
   const [startDate, setStartDate] = useState<Date | undefined>(new Date());
+  const [endDate, setEndDate] = useState<Date | undefined>();
   const [pageContent, setPageContent] = useState<string | undefined>();
   const [readingSpeed, setReadingSpeed] = useState<number | undefined>(
     120
   );
   const [isGenerating, setIsGenerating] = useState(false);
+  const [lastModified, setLastModified] = useState<
+    "pages" | "date" | null
+  >(null);
+
+  // Calculate end date when pages per day changes
+  const calculatedEndDate = useMemo(() => {
+    if (
+      startPage &&
+      endPage &&
+      pagesPerDayCount &&
+      startDate &&
+      lastModified === "pages"
+    ) {
+      const totalPages = endPage - startPage + 1;
+      const daysNeeded = Math.ceil(totalPages / pagesPerDayCount);
+      const resultDate = new Date(startDate);
+      resultDate.setDate(resultDate.getDate() + daysNeeded - 1);
+      return resultDate;
+    }
+    return endDate;
+  }, [
+    startPage,
+    endPage,
+    pagesPerDayCount,
+    startDate,
+    lastModified,
+    endDate,
+  ]);
+
+  // Calculate pages per day when end date changes
+  const calculatedPagesPerDay = useMemo(() => {
+    if (
+      startPage &&
+      endPage &&
+      endDate &&
+      startDate &&
+      lastModified === "date"
+    ) {
+      const totalPages = endPage - startPage + 1;
+      const timeDiff = endDate.getTime() - startDate.getTime();
+      const daysAvailable =
+        Math.ceil(timeDiff / (1000 * 60 * 60 * 24)) + 1;
+      if (daysAvailable > 0) {
+        return Math.ceil(totalPages / daysAvailable);
+      }
+    }
+    return pagesPerDayCount;
+  }, [
+    startPage,
+    endPage,
+    endDate,
+    startDate,
+    lastModified,
+    pagesPerDayCount,
+  ]);
+
+  // Sync calculated values
+  const effectivePagesPerDay =
+    lastModified === "date" ? calculatedPagesPerDay : pagesPerDayCount;
+  const effectiveEndDate =
+    lastModified === "pages" ? calculatedEndDate : endDate;
 
   const pagesReadCount =
     startPage && endPage && endPage > startPage && endPage - startPage + 1;
   const pagesReadCountDays =
     pagesReadCount &&
-    pagesPerDayCount &&
-    pagesReadCount / pagesPerDayCount;
+    effectivePagesPerDay &&
+    pagesReadCount / effectivePagesPerDay;
   const pagesReadCountWeeks = pagesReadCountDays && pagesReadCountDays / 7;
   const pagesReadCountMonths =
     pagesReadCountDays && pagesReadCountDays / 30;
 
   const resultPlan = useMemo(() => {
-    if (startPage && endPage && pagesPerDayCount && startDate) {
+    if (startPage && endPage && effectivePagesPerDay && startDate) {
       const days = [];
       let currentDayIndex = 1;
       const currentDate = new Date(startDate);
       for (
         let currentStartPage = startPage;
         currentStartPage < endPage;
-        currentStartPage += pagesPerDayCount
+        currentStartPage += effectivePagesPerDay
       ) {
-        const currentEndPage = currentStartPage + pagesPerDayCount - 1;
+        const currentEndPage = currentStartPage + effectivePagesPerDay - 1;
         const currentDateDay = currentDate.getDate();
         const currentMonthNameLocalized = currentDate.toLocaleDateString(
           "ru-RU",
@@ -88,7 +150,7 @@ export const BookPlanner = () => {
 
       return days.join("\n");
     }
-  }, [startPage, endPage, pagesPerDayCount, startDate]);
+  }, [startPage, endPage, effectivePagesPerDay, startDate]);
 
   const readTimeMinutes = useMemo(() => {
     if (pageContent && readingSpeed) {
@@ -282,11 +344,16 @@ export const BookPlanner = () => {
           id="pageCount"
           type="number"
           placeholder="4"
-          onChange={(e) => setPagesPerDayCount(+e.target.value)}
+          value={effectivePagesPerDay || ""}
+          onChange={(e) => {
+            const value = +e.target.value;
+            setPagesPerDayCount(value);
+            setLastModified("pages");
+          }}
         />
       </div>
       <div className="grid w-full max-w-sm items-center gap-1.5">
-        <Label>Время начала</Label>
+        <Label>Дата начала</Label>
         <Popover>
           <PopoverTrigger asChild>
             <Button
@@ -309,9 +376,39 @@ export const BookPlanner = () => {
               mode="single"
               selected={startDate}
               onSelect={(newDate) => setStartDate(newDate)}
-              // disabled={(date) =>
-              //   date > new Date() || date < new Date("1900-01-01")
-              // }
+              locale={ru}
+            />
+          </PopoverContent>
+        </Popover>
+      </div>
+      <div className="grid w-full max-w-sm items-center gap-1.5">
+        <Label>Дата окончания</Label>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant={"outline"}
+              className={cn(
+                "w-[240px] pl-3 text-left font-normal",
+                !effectiveEndDate && "text-muted-foreground"
+              )}
+            >
+              {effectiveEndDate ? (
+                format(effectiveEndDate, "PPP", { locale: ru })
+              ) : (
+                <span>Выбери дату</span>
+              )}
+              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={effectiveEndDate}
+              onSelect={(newDate) => {
+                setEndDate(newDate);
+                setLastModified("date");
+              }}
+              disabled={(date) => (startDate ? date < startDate : false)}
               locale={ru}
             />
           </PopoverContent>
@@ -382,7 +479,9 @@ export const BookPlanner = () => {
                 </Label>
                 <Input
                   readOnly
-                  value={Math.floor(pagesPerDayCount * readTimeMinutes)}
+                  value={Math.floor(
+                    effectivePagesPerDay! * readTimeMinutes
+                  )}
                 />
               </div>
             )}
