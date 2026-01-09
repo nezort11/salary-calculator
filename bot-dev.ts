@@ -1,0 +1,294 @@
+import { Bot } from "grammy";
+import { parseBlogPost, generateContentId } from "./src/lib/blog-parser";
+import { parsePDF } from "./src/lib/pdf-parser";
+import { put } from "@vercel/blob";
+import * as dotenv from "dotenv";
+import * as fs from "fs";
+import * as path from "path";
+
+// Load environment variables
+dotenv.config({ path: ".env.local" });
+
+// Helper function to store content (local for dev, Vercel Blob for production)
+async function storeContent(contentId: string, data: any) {
+  const isDev = process.env.NODE_ENV !== "production";
+
+  if (isDev) {
+    // Store locally for development
+    const localStorageDir = path.join(
+      process.cwd(),
+      ".local-storage",
+      "reader"
+    );
+    if (!fs.existsSync(localStorageDir)) {
+      fs.mkdirSync(localStorageDir, { recursive: true });
+    }
+
+    const filePath = path.join(localStorageDir, `${contentId}.json`);
+    fs.writeFileSync(filePath, JSON.stringify(data), "utf-8");
+    console.log(`📁 Stored locally: ${filePath}`);
+  } else {
+    // Use Vercel Blob for production
+    await put(`reader/${contentId}.json`, JSON.stringify(data), {
+      access: "public",
+      addRandomSuffix: false,
+    });
+    console.log(`☁️  Stored in Vercel Blob`);
+  }
+}
+
+const token = process.env.TELEGRAM_BOT_TOKEN;
+if (!token) {
+  console.error(
+    "❌ TELEGRAM_BOT_TOKEN not found in environment variables"
+  );
+  console.error(
+    "Make sure you have a .env.local file with TELEGRAM_BOT_TOKEN set"
+  );
+  process.exit(1);
+}
+
+const bot = new Bot(token);
+
+// Helper to validate if a string is a valid URL
+function isValidUrl(text: string): boolean {
+  try {
+    const url = new URL(text);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+// Command: /start
+bot.command("start", async (ctx) => {
+  await ctx.reply(
+    "👋 Welcome to the Blog Reader Bot!\n\n" +
+      "Convert any content into chunks you can listen to using ChatGPT's text-to-speech!\n\n" +
+      "📄 Send a PDF file - Best option! Bypasses anti-bot protections\n" +
+      "🔗 Send a URL - Direct link to blog post\n\n" +
+      "Commands:\n" +
+      "/read <url> - Parse a blog post URL\n" +
+      "/help - Show detailed help\n\n" +
+      "💡 Pro tip: Print any webpage to PDF and send it here!"
+  );
+});
+
+// Command: /help
+bot.command("help", async (ctx) => {
+  await ctx.reply(
+    "🎧 How to use:\n\n" +
+      "📄 Option 1: Send a PDF file\n" +
+      "   - Print any webpage to PDF and send it\n" +
+      "   - Bypasses anti-bot protections!\n\n" +
+      "🔗 Option 2: Send a blog post URL\n" +
+      "   - Send the URL directly\n" +
+      "   - Or use: /read <url>\n\n" +
+      "Then:\n" +
+      "3. Open the web app and copy each chunk\n" +
+      "4. Paste in ChatGPT app and listen!\n\n" +
+      "Example URL:\n" +
+      "/read https://blog.example.com/article"
+  );
+});
+
+// Handle PDF documents
+bot.on("message:document", async (ctx) => {
+  const document = ctx.message.document;
+  const fileName = document.file_name || "document.pdf";
+
+  // Check if it's a PDF
+  if (
+    !fileName.toLowerCase().endsWith(".pdf") &&
+    document.mime_type !== "application/pdf"
+  ) {
+    await ctx.reply(
+      "❌ Please send a PDF file.\n\n" +
+        "Supported: .pdf files only\n\n" +
+        "💡 Tip: You can print any webpage to PDF and send it to bypass anti-bot protections!"
+    );
+    return;
+  }
+
+  // Send processing message
+  const processingMsg = await ctx.reply(
+    "🔄 Processing your PDF...\n\nThis may take a few moments."
+  );
+
+  try {
+    console.log(`📄 Downloading PDF: ${fileName}`);
+
+    // Get the file from Telegram
+    const file = await ctx.api.getFile(document.file_id);
+    const fileUrl = `https://api.telegram.org/file/bot${token}/${file.file_path}`;
+
+    // Download the PDF
+    const response = await fetch(fileUrl);
+    if (!response.ok) {
+      throw new Error("Failed to download PDF from Telegram");
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    console.log(
+      `📖 Parsing PDF: ${fileName} (${(buffer.length / 1024).toFixed(
+        2
+      )} KB)`
+    );
+
+    // Parse the PDF with 15 sentences per chunk (configurable)
+    const sentencesPerChunk = 15;
+    const parsedContent = await parsePDF(buffer, fileName);
+    console.log(
+      `✅ Parsed: ${parsedContent.title} (${parsedContent.pageCount} pages, ${parsedContent.text.length} characters)`
+    );
+
+    // Generate a unique content ID
+    const contentId = generateContentId();
+
+    // Store the parsed content
+    console.log(`💾 Storing content with ID: ${contentId}`);
+    await storeContent(contentId, parsedContent);
+
+    // Get the base URL for the web app
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      (process.env.NODE_ENV === "production"
+        ? "https://salary-calculator-gray.vercel.app"
+        : "http://localhost:3000");
+    const readerUrl = `${baseUrl}/reader/${contentId}`;
+
+    // Send success message with the web app link
+    await ctx.api.editMessageText(
+      ctx.chat.id,
+      processingMsg.message_id,
+      "✅ Done! Your PDF is ready.\n\n" +
+        `📖 Title: ${parsedContent.title}\n` +
+        `📄 Pages: ${parsedContent.pageCount}\n` +
+        `📝 You can adjust chunk size in the web app\n\n` +
+        `Open the web app to start listening:\n${readerUrl}\n\n` +
+        "Tap the link, adjust chunk size, copy each chunk, and paste in ChatGPT app to listen!"
+    );
+
+    console.log(`✨ Success! Sent link to user: ${readerUrl}`);
+  } catch (error) {
+    console.error("❌ Error processing PDF:", error);
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+
+    await ctx.api.editMessageText(
+      ctx.chat.id,
+      processingMsg.message_id,
+      "❌ Failed to process the PDF.\n\n" +
+        `Error: ${errorMessage}\n\n` +
+        "Please make sure:\n" +
+        "- The file is a valid PDF\n" +
+        "- The PDF contains readable text (not just images)\n" +
+        "- The file is not too large (max ~20MB)"
+    );
+  }
+});
+
+const SENTENCES_PER_CHUNK = 30;
+
+// Command: /read <url> or direct URL message
+bot.on("message:text", async (ctx) => {
+  const text = ctx.message.text.trim();
+
+  // Ignore if it's a command we've already handled
+  if (text.startsWith("/start") || text.startsWith("/help")) {
+    return;
+  }
+
+  // Extract URL from message
+  let url = text;
+  if (text.startsWith("/read ")) {
+    url = text.substring(6).trim();
+  }
+
+  // Validate URL
+  if (!isValidUrl(url)) {
+    await ctx.reply(
+      "❌ Please send a valid URL.\n\n" +
+        "Example: https://blog.example.com/article\n\n" +
+        "Or use: /read <url>"
+    );
+    return;
+  }
+
+  // Send processing message
+  const processingMsg = await ctx.reply(
+    "🔄 Processing your blog post...\n\nThis may take a few moments."
+  );
+
+  try {
+    // Parse the blog post with 15 sentences per chunk (configurable)
+    console.log(`📖 Parsing: ${url}`);
+    const parsedContent = await parseBlogPost(url);
+    console.log(
+      `✅ Parsed: ${parsedContent.title} (${parsedContent.text.length} characters)`
+    );
+
+    // Generate a unique content ID
+    const contentId = generateContentId();
+
+    // Store the parsed content
+    console.log(`💾 Storing content with ID: ${contentId}`);
+    await storeContent(contentId, parsedContent);
+
+    // Get the base URL for the web app
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      (process.env.NODE_ENV === "production"
+        ? "https://salary-calculator-gray.vercel.app"
+        : "http://localhost:3000");
+    const readerUrl = `${baseUrl}/reader/${contentId}`;
+
+    // Send success message with the web app link
+    await ctx.api.editMessageText(
+      ctx.chat.id,
+      processingMsg.message_id,
+      "✅ Done! Your blog post is ready.\n\n" +
+        `📖 Title: ${parsedContent.title}\n` +
+        `📝 You can adjust chunk size in the web app\n\n` +
+        `Open the web app to start listening:\n${readerUrl}\n\n` +
+        "Tap the link, adjust chunk size, copy each chunk, and paste in ChatGPT app to listen!"
+    );
+
+    console.log(`✨ Success! Sent link to user: ${readerUrl}`);
+  } catch (error) {
+    console.error("❌ Error processing blog post:", error);
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+
+    await ctx.api.editMessageText(
+      ctx.chat.id,
+      processingMsg.message_id,
+      "❌ Failed to process the blog post.\n\n" +
+        `Error: ${errorMessage}\n\n` +
+        "Please make sure the URL is accessible and try again."
+    );
+  }
+});
+
+// Error handling
+bot.catch((err) => {
+  console.error("❌ Bot error:", err);
+});
+
+// Start the bot
+console.log("🤖 Starting bot in development mode (long polling)...");
+console.log("📡 Bot will poll Telegram for updates");
+console.log("🔧 Press Ctrl+C to stop\n");
+
+bot.start({
+  onStart: (botInfo) => {
+    console.log(`✅ Bot started successfully!`);
+    console.log(`📱 Bot username: @${botInfo.username}`);
+    console.log(`🆔 Bot ID: ${botInfo.id}`);
+    console.log(
+      `\n💡 Send a message to @${botInfo.username} to test it!\n`
+    );
+  },
+});

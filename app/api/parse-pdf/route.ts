@@ -18,18 +18,27 @@ export async function POST(req: NextRequest) {
       const file = formData.get("pdf") as File;
 
       if (!file) {
-        return new Response(JSON.stringify({ error: "pdf_file_required" }), {
-          status: 400,
-          headers: { "content-type": "application/json" },
-        });
+        return new Response(
+          JSON.stringify({ error: "pdf_file_required" }),
+          {
+            status: 400,
+            headers: { "content-type": "application/json" },
+          }
+        );
       }
 
       // Validate file type
-      if (!file.name.toLowerCase().endsWith(".pdf") && file.type !== "application/pdf") {
-        return new Response(JSON.stringify({ error: "invalid_file_type" }), {
-          status: 400,
-          headers: { "content-type": "application/json" },
-        });
+      if (
+        !file.name.toLowerCase().endsWith(".pdf") &&
+        file.type !== "application/pdf"
+      ) {
+        return new Response(
+          JSON.stringify({ error: "invalid_file_type" }),
+          {
+            status: 400,
+            headers: { "content-type": "application/json" },
+          }
+        );
       }
 
       // Convert file to buffer
@@ -42,10 +51,13 @@ export async function POST(req: NextRequest) {
       const { pdf: pdfData, fileName: providedFileName } = body;
 
       if (!pdfData) {
-        return new Response(JSON.stringify({ error: "pdf_data_required" }), {
-          status: 400,
-          headers: { "content-type": "application/json" },
-        });
+        return new Response(
+          JSON.stringify({ error: "pdf_data_required" }),
+          {
+            status: 400,
+            headers: { "content-type": "application/json" },
+          }
+        );
       }
 
       // Decode base64 to buffer
@@ -59,10 +71,13 @@ export async function POST(req: NextRequest) {
         });
       }
     } else {
-      return new Response(JSON.stringify({ error: "unsupported_content_type" }), {
-        status: 400,
-        headers: { "content-type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: "unsupported_content_type" }),
+        {
+          status: 400,
+          headers: { "content-type": "application/json" },
+        }
+      );
     }
 
     // Validate PDF buffer size (max 50MB)
@@ -73,12 +88,16 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    console.log(`📄 Processing PDF: ${fileName} (${pdfBuffer.length} bytes)`);
+    console.log(
+      `📄 Processing PDF: ${fileName} (${pdfBuffer.length} bytes)`
+    );
 
     // Parse the PDF
     const parsedContent = await parsePDF(pdfBuffer, fileName);
 
-    console.log(`✅ Parsed PDF: ${parsedContent.title} (${parsedContent.pageCount} pages, ${parsedContent.text.length} characters)`);
+    console.log(
+      `✅ Parsed PDF: ${parsedContent.title} (${parsedContent.pageCount} pages, ${parsedContent.text.length} characters)`
+    );
 
     // Generate a unique content ID
     const contentId = generateContentId();

@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/tabs";
 import { SalaryCalculator } from "./containers/SalaryCalculator";
 import { BookPlanner } from "./containers/BookPlanner";
+import { BiblePlanner } from "./containers/BiblePlanner";
 
 export default function Home() {
   return (
@@ -14,11 +15,15 @@ export default function Home() {
       <Tabs defaultValue="reading" className="w-[400px]">
         <TabsList className="mb-8">
           <TabsTrigger value="reading">📖 Read Planner</TabsTrigger>
+          <TabsTrigger value="bible">📖 Bible Planner</TabsTrigger>
           <TabsTrigger value="salary">💰 Salary Calculator</TabsTrigger>
         </TabsList>
         <main>
           <TabsContent value="reading">
             <BookPlanner />
+          </TabsContent>
+          <TabsContent value="bible">
+            <BiblePlanner />
           </TabsContent>
           <TabsContent value="salary">
             <SalaryCalculator />

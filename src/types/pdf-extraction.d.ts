@@ -1,4 +1,4 @@
-declare module 'pdf-extraction' {
+declare module "pdf-extraction" {
   interface PDFExtractResult {
     text: string;
     numpages: number;
