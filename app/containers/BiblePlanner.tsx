@@ -434,6 +434,7 @@ export const BiblePlanner = () => {
     planTitle,
     readingPlan,
     actualDaysCount,
+    selectedPlanId,
   ]);
 
   return (
