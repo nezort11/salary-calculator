@@ -1,0 +1,9 @@
+# Agent Rules
+
+## Automatic TypeScript Verification
+
+To ensure type safety and prevent regression, the agent MUST follow this rule:
+
+1. **Immediate Type Checking**: After modifying any file with `.ts` or `.tsx` extension, the agent MUST immediately run `pnpm tsc --noEmit`.
+2. **Failure Handling**: If type checking fails, the agent MUST prioritize fixing the type errors before proceeding with other changes.
+3. **No Batching**: Do not wait until the end of the task to run type checks. Run them after every meaningful set of changes to TypeScript files.

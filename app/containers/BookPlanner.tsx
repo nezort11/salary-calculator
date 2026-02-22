@@ -46,13 +46,14 @@ export const BookPlanner = () => {
   const [endDate, setEndDate] = useState<Date | undefined>();
   const [pageContent, setPageContent] = useState<string | undefined>();
   const [readingSpeed, setReadingSpeed] = useState<number | undefined>(
-    120
+    120,
   );
   const [isGenerating, setIsGenerating] = useState(false);
   const [lastModified, setLastModified] = useState<
     "pages" | "date" | null
   >(null);
   const [planMode, setPlanMode] = useState<"daily" | "weekly">("daily");
+  const [daysPerWeekCount, setDaysPerWeekCount] = useState<number>(1);
 
   // Calculate end date when pages per day/week changes
   const calculatedEndDate = useMemo(() => {
@@ -70,8 +71,9 @@ export const BookPlanner = () => {
         // pagesPerDayCount is pages per day
         daysNeeded = Math.ceil(totalPages / pagesPerDayCount);
       } else {
-        // pagesPerDayCount is pages per week
-        const weeksNeeded = Math.ceil(totalPages / pagesPerDayCount);
+        // pagesPerDayCount is pages per day, but only for daysPerWeekCount days
+        const pagesPerWeek = pagesPerDayCount * daysPerWeekCount;
+        const weeksNeeded = Math.ceil(totalPages / pagesPerWeek);
         daysNeeded = weeksNeeded * 7;
       }
 
@@ -88,6 +90,7 @@ export const BookPlanner = () => {
     lastModified,
     endDate,
     planMode,
+    daysPerWeekCount,
   ]);
 
   // Calculate pages per day/week when end date changes
@@ -107,8 +110,11 @@ export const BookPlanner = () => {
         if (planMode === "daily") {
           return Math.ceil(totalPages / daysAvailable);
         } else {
+          // Weekly mode: check how many "reading weeks" we have
           const weeksAvailable = Math.ceil(daysAvailable / 7);
-          return Math.ceil(totalPages / weeksAvailable);
+          // Total reading days available in that period
+          const totalReadingDays = weeksAvailable * daysPerWeekCount;
+          return Math.ceil(totalPages / totalReadingDays);
         }
       }
     }
@@ -121,6 +127,7 @@ export const BookPlanner = () => {
     lastModified,
     pagesPerDayCount,
     planMode,
+    daysPerWeekCount,
   ]);
 
   // Sync calculated values
@@ -140,18 +147,26 @@ export const BookPlanner = () => {
       // In daily mode: effectivePagesPerDay is pages per day
       return pagesReadCount / effectivePagesPerDay;
     } else {
-      // In weekly mode: effectivePagesPerDay is pages per week
-      const weeksNeeded = pagesReadCount / effectivePagesPerDay;
+      // effectivePagesPerDay is pages per READING day
+      // We need total weeks to get total duration days
+      const totalPagesPerWeek = effectivePagesPerDay * daysPerWeekCount;
+      const weeksNeeded = pagesReadCount / totalPagesPerWeek;
       return weeksNeeded * 7;
     }
-  }, [pagesReadCount, effectivePagesPerDay, planMode]);
+  }, [pagesReadCount, effectivePagesPerDay, planMode, daysPerWeekCount]);
 
   const pagesReadCountWeeks = pagesReadCountDays && pagesReadCountDays / 7;
   const pagesReadCountMonths =
     pagesReadCountDays && pagesReadCountDays / 30;
 
   const resultPlan = useMemo(() => {
-    if (startPage && endPage && effectivePagesPerDay && startDate) {
+    if (
+      startPage &&
+      endPage &&
+      effectivePagesPerDay &&
+      startDate &&
+      (planMode === "daily" || daysPerWeekCount)
+    ) {
       if (planMode === "daily") {
         // Daily plan generation
         const days = [];
@@ -164,18 +179,18 @@ export const BookPlanner = () => {
         ) {
           const currentEndPage = Math.min(
             currentStartPage + effectivePagesPerDay - 1,
-            endPage
+            endPage,
           );
           const currentDateDay = currentDate.getDate();
           const currentMonthNameLocalized = currentDate.toLocaleDateString(
             "ru-RU",
             {
               month: "short",
-            }
+            },
           );
           const dayOfWeek = format(currentDate, "EEEEEE", { locale: ru });
           days.push(
-            `${dayOfWeek}, ${currentDateDay} ${currentMonthNameLocalized} (день ${currentDayIndex}) — стр. ${currentStartPage}-${currentEndPage}`
+            `${dayOfWeek}, ${currentDateDay} ${currentMonthNameLocalized} (день ${currentDayIndex}) — стр. ${currentStartPage}-${currentEndPage}`,
           );
 
           currentDayIndex += 1;
@@ -188,18 +203,10 @@ export const BookPlanner = () => {
         const weeks = [];
         let currentWeekIndex = 1;
         const currentDate = new Date(startDate);
-        const pagesPerWeek = effectivePagesPerDay; // In weekly mode, this is already pages per week
 
-        for (
-          let currentStartPage = startPage;
-          currentStartPage < endPage;
-          currentStartPage += pagesPerWeek
-        ) {
-          const currentEndPage = Math.min(
-            currentStartPage + pagesPerWeek - 1,
-            endPage
-          );
+        let currentStartPage = startPage;
 
+        while (currentStartPage < endPage) {
           // Calculate week end date
           const weekEndDate = new Date(currentDate);
           weekEndDate.setDate(weekEndDate.getDate() + 6);
@@ -209,19 +216,36 @@ export const BookPlanner = () => {
             "ru-RU",
             {
               month: "short",
-            }
+            },
           );
           const endDateDay = weekEndDate.getDate();
           const endMonthNameLocalized = weekEndDate.toLocaleDateString(
             "ru-RU",
             {
               month: "short",
-            }
+            },
           );
 
-          weeks.push(
-            `Неделя ${currentWeekIndex}: ${startDateDay} ${startMonthNameLocalized} - ${endDateDay} ${endMonthNameLocalized} — стр. ${currentStartPage}-${currentEndPage}`
-          );
+          // Generate days for this week
+          const dayRanges = [];
+          for (let i = 0; i < daysPerWeekCount; i++) {
+            if (currentStartPage >= endPage) break;
+
+            const currentEndPage = Math.min(
+              currentStartPage + effectivePagesPerDay - 1,
+              endPage,
+            );
+            dayRanges.push(`${currentStartPage}-${currentEndPage}`);
+            currentStartPage = currentEndPage + 1;
+          }
+
+          if (dayRanges.length > 0) {
+            weeks.push(
+              `Неделя ${currentWeekIndex}: ${startDateDay} ${startMonthNameLocalized} - ${endDateDay} ${endMonthNameLocalized} — стр. ${dayRanges.join(
+                ", ",
+              )}`,
+            );
+          }
 
           currentWeekIndex += 1;
           currentDate.setDate(currentDate.getDate() + 7);
@@ -230,14 +254,21 @@ export const BookPlanner = () => {
         return weeks.join("\n");
       }
     }
-  }, [startPage, endPage, effectivePagesPerDay, startDate, planMode]);
+  }, [
+    startPage,
+    endPage,
+    effectivePagesPerDay,
+    startDate,
+    planMode,
+    daysPerWeekCount,
+  ]);
 
   const readTimeMinutes = useMemo(() => {
     if (pageContent && readingSpeed && effectivePagesPerDay) {
       const pageWords = pageContent.split(" ");
       const pageReadTimeMinutes = pageWords.length / readingSpeed;
 
-      // In both modes, multiply by pages (daily or weekly)
+      // effectivePagesPerDay is now always pages per one reading day
       return pageReadTimeMinutes * effectivePagesPerDay;
     }
   }, [pageContent, readingSpeed, effectivePagesPerDay]);
@@ -319,7 +350,7 @@ export const BookPlanner = () => {
         pageWidthMm,
         pageHeightMm,
         undefined,
-        "FAST"
+        "FAST",
       );
       const fileName = `План чтения ${
         startDate ? format(startDate, "PPP", { locale: ru }) : "-"
@@ -335,7 +366,7 @@ export const BookPlanner = () => {
         const isTMA =
           !!tg?.platform ||
           /tgWebAppPlatform|tgWebAppData/.test(
-            `${window.location.hash} ${window.location.search}`
+            `${window.location.hash} ${window.location.search}`,
           );
         if (isTMA) {
           const initData =
@@ -346,7 +377,7 @@ export const BookPlanner = () => {
                 : window.location.hash || "";
               const hashParams = new URLSearchParams(hash);
               const searchParams = new URLSearchParams(
-                window.location.search
+                window.location.search,
               );
               const encoded =
                 hashParams.get("tgWebAppData") ||
@@ -432,11 +463,34 @@ export const BookPlanner = () => {
           onChange={(e) => setEndPage(+e.target.value)}
         />
       </div>
+
+      {planMode === "weekly" && (
+        <div className="grid w-full max-w-sm items-center gap-1.5">
+          <Label htmlFor="daysPerWeek">
+            Сколько дней в неделю будешь читать?
+          </Label>
+          <Input
+            id="daysPerWeek"
+            type="number"
+            min={1}
+            max={7}
+            placeholder="1"
+            value={daysPerWeekCount}
+            onChange={(e) => {
+              const val = +e.target.value;
+              if (val > 0 && val <= 7) {
+                setDaysPerWeekCount(val);
+                setLastModified("pages");
+              }
+            }}
+          />
+        </div>
+      )}
+
       <div className="grid w-full max-w-sm items-center gap-1.5">
         <Label htmlFor="pageCount">
-          {planMode === "daily"
-            ? "Введи по сколько страниц в день будешь читать"
-            : "Введи по сколько страниц в неделю будешь читать"}
+          Введи по сколько страниц в день будешь читать{" "}
+          {planMode === "weekly" && "(в дни чтения)"}
         </Label>
         <Input
           id="pageCount"
@@ -458,7 +512,7 @@ export const BookPlanner = () => {
               variant={"outline"}
               className={cn(
                 "w-[240px] pl-3 text-left font-normal",
-                !startDate && "text-muted-foreground"
+                !startDate && "text-muted-foreground",
               )}
             >
               {startDate ? (
@@ -487,7 +541,7 @@ export const BookPlanner = () => {
               variant={"outline"}
               className={cn(
                 "w-[240px] pl-3 text-left font-normal",
-                !effectiveEndDate && "text-muted-foreground"
+                !effectiveEndDate && "text-muted-foreground",
               )}
             >
               {effectiveEndDate ? (
@@ -574,7 +628,7 @@ export const BookPlanner = () => {
               <div className="w-full mb-4">
                 <Label htmlFor="readTime">
                   Ориентировочное время чтения (мин /{" "}
-                  {planMode === "daily" ? "день" : "неделю"})
+                  {planMode === "daily" ? "день" : "день чтения"})
                 </Label>
                 <Input
                   id="readTime"
