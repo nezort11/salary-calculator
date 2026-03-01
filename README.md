@@ -2,11 +2,11 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Features
 
-### 📖 Reading Planner
+### 📖 Book
 
 Plan your reading schedule and track your progress.
 
-### 💰 Salary Calculator
+### 💰 Salary
 
 Calculate your salary with various parameters.
 

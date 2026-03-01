@@ -14,9 +14,9 @@ export default function Home() {
     <div className="m-8 flex justify-center font-[family-name:var(--font-geist-sans)]">
       <Tabs defaultValue="reading" className="w-[400px]">
         <TabsList className="mb-8">
-          <TabsTrigger value="reading">📖 Read Planner</TabsTrigger>
-          <TabsTrigger value="bible">📖 Bible Planner</TabsTrigger>
-          <TabsTrigger value="salary">💰 Salary Calculator</TabsTrigger>
+          <TabsTrigger value="reading">📖 Book</TabsTrigger>
+          <TabsTrigger value="bible">📖 Bible</TabsTrigger>
+          <TabsTrigger value="salary">💰 Salary</TabsTrigger>
         </TabsList>
         <main>
           <TabsContent value="reading">
